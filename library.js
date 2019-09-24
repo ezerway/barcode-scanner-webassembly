@@ -3,7 +3,7 @@ mergeInto(LibraryManager.library, {
     js_output_result: function (symbol, data, polygon, polygon_size) {
 
         // function provided by Emscripten to convert WASM heap string pointers to JS strings.
-        const Pointer_stringify = Module['Pointer_stringify'];
+        const UTF8ToString = Module['UTF8ToString'];
 
         // Note: new TypedArray(someBuffer) will create a new view onto the same memory chunk, 
         // while new TypedArray(someTypedArray) will copy the data so the original can be freed.
@@ -15,7 +15,7 @@ mergeInto(LibraryManager.library, {
         if (downstreamProcessor == null) {
             throw new Error("No downstream processing function set")
         }
-        downstreamProcessor(Pointer_stringify(symbol), Pointer_stringify(data), coordinates)
+        downstreamProcessor(UTF8ToString(symbol), UTF8ToString(data), coordinates)
 
     }
 });

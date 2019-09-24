@@ -4,23 +4,41 @@
 <head>
 	<meta charset="UTF-8">
 	<title>barcode scanner wasm</title>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			background-color: black;
+		}
+		.wrapper {
+			display: flex;
+ 			align-items: center;
+  			justify-content: center;
+  			min-height: 100vh;
+		}
+		canvas {
+			/* transform: rotate(-90deg); */
+			
+		}
+	</style>
 </head>
 
 <!-- We create some DOM elements necessary for grabbing webcam frames -->
 <body>
-	<div>
+	<div class="wrapper">
 		<!-- note that we hide the live video element using 'display:none', that way only the canvas is rendered -->
-		<video id="live" width="320" height="240" autoplay style="border:5px solid #000000; display:none;"> </video>
-		<canvas id="canvas" style="border:5px solid #000000"> </canvas>
+		<video id="live" width="1" height="1" autoplay style="display:block;" playsinline> </video>
+		<canvas id="canvas"> </canvas>
 	</div>
 
 </body>
 
 <!-- Import the javascript bundle produced by Emscripten-->
-<script src="/a.out.js"></script>
+<script src="a.out.js"></script>
 
 <!-- The main 'application code' tying it all together -->
 <script>
+
 
 // Execute the application code when the WebAssembly module is ready.
 Module.onRuntimeInitialized = async _ => {
@@ -35,17 +53,74 @@ const api = {
 const video = document.getElementById("live");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext('2d');
-const desiredWidth = 1280;
-const desiredHeight = 720;
+
 
 // settings for the getUserMedia call
 const constraints = {
 	video: {
 		// the browser will try to honor this resolution, but it may end up being lower.
-		width: desiredWidth,
-		height: desiredHeight
+		width: {
+			min: 1280,
+			max: 3840,
+			ideal: 3840
+		},
+		// width: 1920,
+		// width: 1280,
+		// height: 720,
+		// 1280x720 for iphone
+		// empty for ipad
+		facingMode: {
+            exact: "environment"
+        }
 	}
 };
+
+const startingAtVerticalView = window.innerHeight > window.innerWidth;
+
+let heightOriginal;
+let widthOriginal;
+let ratio;
+
+// self executing function here
+// (function() {
+//    heightOriginal = document.body.clientHeight;
+//    widthOriginal = document.body.clientWidth;
+// })();
+
+
+window.addEventListener("orientationchange", function() {
+  console.log("the orientation of the device is  changed w: " + document.body.clientWidth + ",h: " + document.body.clientHeight);
+ 
+  let fromVertical = canvas.height > canvas.width;
+
+  currenntViewIsVertical = fromVertical;
+  
+  let oldHeight = canvas.height;
+  let oldWidth = canvas.width;
+
+  if (startingAtVerticalView) {
+	  if (fromVertical) {
+		let newHeight = Math.min(oldWidth, oldWidth * ratio);
+		canvas.height = newHeight;
+		canvas.width = Math.min(oldWidth, newHeight / ratio);
+		return;
+	  }
+
+	  canvas.width = widthOriginal;
+	  canvas.height = heightOriginal;
+	  return;
+  }
+
+  if (fromVertical) {
+	canvas.width = widthOriginal;
+	canvas.height = heightOriginal;
+	return;
+  }
+
+  	let scaleUp = 1.95;
+	canvas.width = oldHeight * scaleUp;
+	canvas.height = oldWidth * scaleUp;
+});
 
 // open the webcam stream
 navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
@@ -56,9 +131,27 @@ navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
 	// tell the canvas which resolution we ended up getting from the webcam
 	const track = stream.getVideoTracks()[0];
 	const actualSettings = track.getSettings();
+	const { width, height } = actualSettings;
 	console.log(actualSettings.width, actualSettings.height)
-	canvas.width = actualSettings.width;
-	canvas.height = actualSettings.height;
+
+	// ratio = canvas.width / canvas.height
+	ratio = width/ height;
+
+	//alert(JSON.stringify({ width, height, canvasW: canvas.width, canvasH: canvas.height }))
+
+	if (startingAtVerticalView) {
+		canvas.height = document.body.clientHeight;
+		canvas.width = Math.min(canvas.height * ratio, document.body.clientWidth);
+	} else {
+		canvas.width = document.body.clientWidth;
+		canvas.height = Math.min(canvas.width / ratio, document.body.clientHeight);
+	}
+
+	widthOriginal = canvas.width;
+	heightOriginal = canvas.height;
+	// canvas.height = body.document.clientHeight;
+	// canvas.width = body.document.clientWidth;
+
 
 	// every k milliseconds, we draw the contents of the video to the canvas and run the detector.
 	const timer = setInterval(detectSymbols, 250);
